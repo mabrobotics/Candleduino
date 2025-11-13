@@ -1,4 +1,6 @@
 #include "MD_arduino.hpp"
+// Define static member once outside the class
+MD *MD::instance = nullptr;
 
 #if defined(ARDUINO_ARCH_AVR)
 
@@ -6,17 +8,19 @@ MD::Error_t MD::init()
 {
     while (CAN_OK != m_CAN.begin(CAN_1000KBPS))
     {
-        delay(100);
+        Serial.print("Waiting for connection");
+        delay(500);
     }
     queueInit(&m_receiveQueue);
     return MD::Error_t::OK;
 }
 
-bool MD::send(uint8_t buffer[8], uint8_t respBuffer[8], bool &popped)
+MD::Error_t MD::send(uint8_t buffer[8], uint8_t respBuffer[8])
 {
-    m_CAN.sendMsgBuf((uint32_t)m_canId, 0, MAB_CAN_BUFF_SIZE, buffer);
-
-    delayMicroseconds(500);
+    bool popped = false;
+    m_CAN.sendMsgBuf(m_canId, 0, MAB_CAN_BUFF_SIZE, buffer);
+    if (MD::update() != MD::Error_t::OK)
+        return MD::Error_t::NOT_CONNECTED;
 
     for (int i = 0; i < FIFO_CAPACITY; i++)
     {
@@ -26,19 +30,15 @@ bool MD::send(uint8_t buffer[8], uint8_t respBuffer[8], bool &popped)
             popped = true;
             break;
         }
-        else
-        {
-            delayMicroseconds(500);
-        }
     }
 
     if (!popped)
-        return false;
+        return MD::Error_t::TRANSFER_FAILED;
 
-    return true;
+    return MD::Error_t::OK;
 }
 
-bool MD::update()
+MD::Error_t MD::update()
 {
     if (CAN_MSGAVAIL == m_CAN.checkReceive())
     {
@@ -46,19 +46,32 @@ bool MD::update()
         if (rxId == (uint32_t)m_canId)
         {
             queuePush(&m_receiveQueue, rxBuffer);
-            return true;
+            return MD::Error_t::OK;
         }
     }
-    return false;
+    return MD::Error_t ::NOT_CONNECTED;
 }
-#elif defined(ARDUINO_ARCH_SAM)
-bool MD::send(uint8_t buffer[8], uint8_t respBuffer[8], bool &popped)
+#elif defined(TEENSYDUINO)
+
+MD::Error_t MD::sendFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t bufferLength)
 {
-    CanMsg const msg(CanStandardId(m_canId), sizeof(buffer), buffer);
 
-    CAN.write(msg);
+    CANFD_message_t tx_msg;
+    tx_msg.id = m_canId;
+    tx_msg.len = bufferLength;
+    tx_msg.flags.extended = 0;
+    tx_msg.esi = 1;
+    tx_msg.brs = 0;
 
-    delayMicroseconds(500);
+    for (uint8_t i = 0; i < bufferLength; i++)
+    {
+        tx_msg.buf[i] = buffer[i];
+    }
+    m_Can.write(tx_msg);
+
+    // delayMicroseconds(500);
+    m_Can.events();
+    bool popped = false;
 
     for (int i = 0; i < FIFO_CAPACITY; i++)
     {
@@ -68,27 +81,106 @@ bool MD::send(uint8_t buffer[8], uint8_t respBuffer[8], bool &popped)
             popped = true;
             break;
         }
-        else
+    }
+
+    if (!popped)
+        return MD::Error_t::TRANSFER_FAILED;
+
+    return MD::Error_t::OK;
+}
+
+MD::Error_t MD::send(uint8_t buffer[8], uint8_t respBuffer[8])
+{
+
+    CAN_message_t tx_msg;
+    tx_msg.id = m_canId;
+    memcpy(tx_msg.buf, buffer, MAB_CAN_BUFF_SIZE);
+    tx_msg.len = MAB_CAN_BUFF_SIZE;
+    tx_msg.flags.extended = 0;
+    m_Can.write(tx_msg);
+
+    delayMicroseconds(500);
+    m_Can.events();
+    bool popped = false;
+
+    for (int i = 0; i < FIFO_CAPACITY; i++)
+    {
+        if (m_receiveQueue.count > 0)
         {
-            delayMicroseconds(500);
+            queuePop(&m_receiveQueue, respBuffer);
+            popped = true;
+            break;
         }
     }
 
     if (!popped)
-        return false;
+        return MD::Error_t::TRANSFER_FAILED;
 
-    return true;
+    return MD::Error_t::OK;
+}
+
+void MD::canCallback(const CAN_message_t &msg)
+{
+    if (instance)
+        instance->handleMessage(msg);
+}
+
+void MD::handleMessage(const CAN_message_t &msg)
+{
+    if (msg.id == (uint32_t)m_canId)
+        queuePush(&m_receiveQueue, msg.buf);
+}
+
+void MD::canCallbackFD(const CANFD_message_t &msg)
+{
+    if (instance)
+        instance->handleMessageFD(msg);
+}
+
+void MD::handleMessageFD(const CANFD_message_t &msg)
+{
+    if (msg.id == (uint32_t)m_canId)
+        queuePush(&m_receiveQueue, msg.buf);
+}
+
+#else
+MD::Error_t MD::send(uint8_t buffer[8], uint8_t respBuffer[8])
+{
+    bool popped = false;
+    CanMsg const msg(CanStandardId(m_canId), MAB_CAN_BUFF_SIZE, buffer);
+
+    CAN.write(msg);
+    if (MD::update() != MD::Error_t::OK)
+        return MD::Error_t::NOT_CONNECTED;
+
+    for (int i = 0; i < FIFO_CAPACITY; i++)
+    {
+        if (m_receiveQueue.count > 0)
+        {
+            queuePop(&m_receiveQueue, respBuffer);
+            popped = true;
+            break;
+        }
+    }
+
+    if (!popped)
+        return MD::Error_t::TRANSFER_FAILED;
+
+    return MD::Error_t::OK;
 }
 
 MD::Error_t MD::init()
 {
     if (!CAN.begin(CanBitRate::BR_1000k))
     {
-        delay(100);
+        Serial.print("Waiting for connection");
+        delay(500);
     }
+    queueInit(&m_receiveQueue);
+    return MD::Error_t::OK;
 }
 
-bool MD::update()
+MD::Error_t MD::update()
 {
     if (CAN.available())
     {
@@ -97,66 +189,71 @@ bool MD::update()
         if (CanStandardId(msg.id) == (uint32_t)m_canId)
         {
             queuePush(&m_receiveQueue, rxBuffer);
-            return true;
+            return MD::Error_t::OK;
         }
     }
-    return false;
+    return MD::Error_t::NOT_CONNECTED;
 }
 #endif
 
-MD::Error_t MD::getMotionMode(motionModeMab_E motionMode)
-{
-    uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-    uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-    uint8_t modeMainRead = 0;
-    bool popped = false;
+/*
+#define MD_REG(name, type, addr, access) _GEN_DECL_##access(name, type)
+#define _GEN_DECL_RO(name, type)
+#define _GEN_DECL_RW(name, type)
+#define _GEN_DECL_WO(name, type)
 
-    if (getMotionModePrepareDataFrame(&buffer, MAB_CAN_BUFF_SIZE) != 1)
-        return MD::Error_t::TRANSFER_FAILED;
+REGISTER_LIST
 
-    if (!send(buffer, respBuffer, popped))
-        return MD::Error_t::TRANSFER_FAILED;
+#undef MD_REG
+#undef _GEN_DECL_RO
+#undef _GEN_DECL_RW
+#undef _GEN_DECL_WO
 
-    if (getMotionModeParseResponse(&respBuffer, MAB_CAN_BUFF_SIZE, &modeMainRead) != 1)
-        return MD::Error_t::TRANSFER_FAILED;
+#define MD_REG(name, type, addr, access) _GEN_DEF_##access(name, type, addr)
 
-    motionMode = (motionModeMab_E)modeMainRead;
+#define _GEN_DEF_RO(name, type, addr) \
+    MD::Error_t MD::get##name(type &name) { return readRegister(addr, name); }
 
-    return MD::Error_t::OK;
-}
+#define _GEN_DEF_RW(name, type, addr)                                          \
+    MD::Error_t MD::set##name(type name) { return writeRegister(addr, name); } \
+    MD::Error_t MD::get##name(type &name) { return readRegister(addr, name); }
 
+#define _GEN_DEF_WO(name, type, addr) \
+    MD::Error_t MD::set##name(type name) { return writeRegister(addr, name); }
+
+REGISTER_LIST
+
+#undef _GEN_DEF_RO
+#undef _GEN_DEF_RW
+#undef _GEN_DEF_WO
+#undef MD_REG
+*/
 MD::Error_t MD::enable()
 {
-    uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-    uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-    bool popped = false;
-
-    if (setStateEnablePrepareDataFrame(&buffer, MAB_CAN_BUFF_SIZE) != 1)
-        return MD::Error_t::UNKNOWN_ERROR;
-
-    if (!send(buffer, respBuffer, popped))
-        return MD::Error_t::TRANSFER_FAILED;
-
-    if (setStateEnableParseResponse(&respBuffer, MAB_CAN_BUFF_SIZE) != 1)
-        return MD::Error_t::UNKNOWN_ERROR;
-
-    return MD::Error_t::OK;
+    return writeRegister(REG_CONTROL_WORD, CONTROL_WORD_ENABLE);
 }
 
 MD::Error_t MD::disable()
 {
-    uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-    uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-    bool popped = false;
+    return writeRegister(REG_CONTROL_WORD, CONTROL_WORD_DISABLE);
+}
 
-    if (setStateDisablePrepareDataFrame(&buffer, MAB_CAN_BUFF_SIZE) != 1)
-        return MD::Error_t::UNKNOWN_ERROR;
+MD::Error_t MD::blink()
+{
+    return writeRegister(BLINK, 0x01);
+}
 
-    if (!send(buffer, respBuffer, popped))
-        return MD::Error_t::TRANSFER_FAILED;
+MD::Error_t MD::getMotionMode(motionModeMab_E &motionMode)
+{
+    return readRegister(REG_MOTION_MODE_STATUS, motionMode);
+}
 
-    if (setStateDisableParseResponse(&respBuffer, MAB_CAN_BUFF_SIZE) != 1)
-        return MD::Error_t::UNKNOWN_ERROR;
+MD::Error_t MD::getPolePairs(u32 &polePairs)
+{
+    return readRegister(REG_MOTOR_POLE_PAIRS, polePairs);
+}
 
-    return MD::Error_t::OK;
+MD::Error_t MD::getPosition(f32 &position)
+{
+    return readRegister(REG_MAIN_ENCODER_POS, position);
 }

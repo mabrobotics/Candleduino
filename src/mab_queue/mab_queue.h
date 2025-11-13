@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MAX_SIZE 8
+#define MAX_SIZE 64
 #define FIFO_CAPACITY 3
 
 typedef struct

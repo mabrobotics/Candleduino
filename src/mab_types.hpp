@@ -1,5 +1,4 @@
-// #pragma once
-
+#pragma once
 #include <stdint.h>
 
 typedef uint64_t u64;
@@ -9,7 +8,8 @@ typedef int64_t i64;
 typedef uint32_t u32;
 typedef int32_t s32;
 typedef int32_t i32;
-#if defined(ARDUINO_ARCH_SAM)
+#if defined(ARDUINO_ARCH_AVR)
+#else
 typedef uint16_t u16;
 #endif
 
@@ -25,20 +25,11 @@ typedef float f32;
 typedef void function(void *);
 typedef u32 flags_t;
 
-#ifdef __cplusplus
 namespace mab
 {
-    using canId_t = u16;
+    using canId_t = u32;
 
-    /// @brief CAN bus datarates
-    enum CANdleDatarate_E : uint8_t
-    {
-        CAN_DATARATE_1M = 1, /*!< FDCAN Datarate of 1Mbps (1 000 000 bits per second) */
-        CAN_DATARATE_2M = 2, /*!< FDCAN Datarate of 2Mbps (2 000 000 bits per second) */
-        CAN_DATARATE_5M = 5, /*!< FDCAN Datarate of 5Mbps (5 000 000 bits per second) */
-        CAN_DATARATE_8M = 8, /*!< FDCAN Datarate of 8Mbps (8 000 000 bits per second) */
-    };
-    /**
+        /**
      * @brief Impedance controller parameters
      *
      * Impedance controller output is computed as: torque = kp * position_error + kd *
@@ -129,5 +120,3 @@ namespace mab
     } version_ut;
 
 } // namespace mab
-
-#endif

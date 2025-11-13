@@ -1,0 +1,26 @@
+# Classes (KEYWORD1)
+MD  KEYWORD1
+Error_t KEYWORD1
+
+# Methods and Functions (KEYWORD2)
+update  KEYWORD2
+blink   KEYWORD2
+enable  KEYWORD2
+getMotionMode   KEYWORD2
+disable KEYWORD2
+reset   KEYWORD2
+clearErrors KEYWORD2
+save    KEYWORD2
+zero    KEYWORD2
+setCurrentLimit KEYWORD2
+setTorqueBandwidth  KEYWORD2
+setMotionMode   KEYWORD2
+setPositionPIDparam KEYWORD2
+setVelocityPIDparam KEYWORD2
+setImpedanceParams  KEYWORD2
+setMaxTorque    KEYWORD2
+setProfileVelocity  KEYWORD2
+setProfileAcceleration  KEYWORD2
+setTargetPosition   KEYWORD2
+setTargetVelocity   KEYWORD2
+setTargetTorque KEYWORD2
