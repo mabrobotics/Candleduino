@@ -163,12 +163,7 @@
     MD_REG(BootloaderFixed, u8, 0x812, RO)           \
     MD_REG(MiscStatus, u32, 0x813, RO)
 */
-
-#pragma once
-#ifndef USE_CANFD
-#define USE_CANFD 1 // default is classic CAN
-#endif
-
+#define USE_CANFD 1
 class MD
 {
 
@@ -193,10 +188,9 @@ protected:
     Error_t send(uint8_t buffer[8], uint8_t respBuffer[8]);
     Error_t sendFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t length);
     FifoFrame_S m_receiveQueue;
-    long unsigned int rxId;
-    unsigned char rxLen;
-    unsigned char rxBuffer[8];
     static MD *instance;
+
+    uint8_t respBuffer2[64] = {0};
 
 public:
 #if defined(ARDUINO_ARCH_AVR)
@@ -243,11 +237,13 @@ public:
 #endif
     /// @brief Initialize MD CAN communication
     /// @return
+
+#if defined(TEENSYDUINO)
     Error_t init()
     {
-        Serial.println("CAN begin done"); // confirm this runs
 
 #if USE_CANFD
+        Serial.println("CANFD");
         CANFD_timings_t config;
         config.clock = CLK_24MHz;
         config.baudrate = 1000000;
@@ -260,20 +256,23 @@ public:
         m_Can.setRegions(64);
         m_Can.onReceive(MB0, canCallbackFD);
         m_Can.enableMBInterrupts();
-        m_Can.mailboxStatus();
+        // m_Can.mailboxStatus();
 
 #else
+        Serial.println("CAN2.0");
         m_Can.begin();
         m_Can.setBaudRate(1000000);
         m_Can.setMaxMB(16);
         m_Can.enableFIFO();
         m_Can.enableFIFOInterrupt();
         m_Can.onReceive(canCallback);
-        m_Can.mailboxStatus();
 #endif
-
+        Serial.println("CAN begin done"); // confirm this runs
         return MD::Error_t::OK;
     }
+#else
+    Error_t init();
+#endif
 
     /// @brief Update receive queue
     /// @return
@@ -301,53 +300,35 @@ public:
     template <typename T>
     Error_t writeRegister(uint16_t registerId, T registerData)
     {
+
+#if USE_CANFD
+        uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
+        uint8_t buffer[bufferSize] = {0};
+        uint8_t respBuffer[bufferSize] = {0};
+        buffer[0] = FRAME_WRITE_REGISTER_FD;
+        buffer[1] = 0x00;
+
+        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
+
+        auto result = sendFD(buffer, respBuffer, bufferSize);
+        if (result != MD::Error_t::OK)
+            return MD::Error_t::NOT_CONNECTED;
+
+#else
         uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-        if (!writeRegisterPrepareDataFrame<T>(
-                buffer, MAB_CAN_BUFF_SIZE, registerId, &registerData, false))
-            return MD::Error_t::UNKNOWN_ERROR;
         uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
+        buffer[0] = FRAME_WRITE_REGISTER_FD;
+        buffer[1] = 0x00;
+
+        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
         auto result = send(buffer, respBuffer);
         if (result != MD::Error_t::OK)
             return MD::Error_t::NOT_CONNECTED;
 
-        T data = 0;
-
-        parseResponse(respBuffer, MAB_CAN_BUFF_SIZE, 0x42, registerId, &data);
-
-        if (data == (T)registerData)
-            return MD::Error_t::OK;
-        else
-            return MD::Error_t::REQUEST_INVALID;
-    }
-
-    template <typename... T>
-    Error_t writeRegisters(T... message)
-    {
-        size_t bufferSize = 2;
-        ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
-        uint8_t buffer[bufferSize] = {0};
-
-        bufferSize = 2;
-
-        if (false)
-            buffer[0] = FRAME_WRITE_REGISTER_DEFAULT_RESPONSE;
-        else
-            buffer[0] = FRAME_WRITE_REGISTER_FD;
-        buffer[1] = 0x00;
-
-        ([&]()
-         {
-         memcpy(buffer + bufferSize, &message.registerID, sizeof(uint16_t));
-         memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
-         bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
-         ...);
-        printHexBuffer(buffer, bufferSize);
-        uint8_t respBuffer[bufferSize] = {0};
-
-        auto result = sendFD(buffer, respBuffer, bufferSize);
-        if (result != MD::Error_t::OK)
-            return MD::Error_t::NOT_CONNECTED;
+#endif
 
         return MD::Error_t::OK;
     }
@@ -355,9 +336,9 @@ public:
     template <typename T>
     Error_t writeRegister(MD::Message<T> registerData)
     {
-        writeRegister(uint16_t(registerData.registerID), registerData.value);
-        return MD::Error_t::OK;
+        return writeRegister(registerData.registerID, registerData.value);
     }
+
     /**
      * @brief Reads data from register
      *
@@ -369,18 +350,37 @@ public:
     template <typename T>
     Error_t readRegister(uint16_t registerId, T &registerData)
     {
-        uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-        uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
 
-        if (!readRegisterPrepareDataFrame<T>(&buffer, MAB_CAN_BUFF_SIZE, registerId))
-            return MD::Error_t::UNKNOWN_ERROR;
+#if USE_CANFD
+        uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
+        uint8_t buffer[bufferSize] = {0};
+        uint8_t respBuffer[bufferSize] = {0};
+        buffer[0] = FRAME_READ_REGISTER_FD;
+        buffer[1] = 0x00;
 
-        if (send(buffer, respBuffer) != MD::Error_t::OK)
+        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
+
+        auto result = sendFD(buffer, respBuffer, bufferSize);
+        if (result != MD::Error_t::OK)
             return MD::Error_t::NOT_CONNECTED;
 
-        parseResponse(
-            &respBuffer, MAB_CAN_BUFF_SIZE, FRAME_READ_REGISTER, registerId, &registerData);
+#else
+        uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
+        uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
+        buffer[0] = FRAME_READ_REGISTER;
+        buffer[1] = 0x00;
 
+        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
+
+        auto result = send(buffer, respBuffer);
+        if (result != MD::Error_t::OK)
+            return MD::Error_t::NOT_CONNECTED;
+
+#endif
+
+        memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
         return MD::Error_t::OK;
     }
 
@@ -391,6 +391,35 @@ public:
         return MD::Error_t::OK;
     }
 
+#if USE_CANFD
+    // Only CAN FD
+    template <typename... T>
+    Error_t writeRegisters(T... message)
+    {
+        size_t bufferSize = 2;
+        ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
+        uint8_t buffer[bufferSize] = {0};
+        uint8_t respBuffer[bufferSize] = {0};
+        bufferSize = 2;
+
+        buffer[0] = FRAME_WRITE_REGISTER_FD;
+        buffer[1] = 0x00;
+
+        ([&]()
+         {
+         memcpy(buffer + bufferSize, &message.registerID, sizeof(uint16_t));
+         memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
+         bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
+         ...);
+        auto result = sendFD(buffer, respBuffer, bufferSize);
+
+        if (result != MD::Error_t::OK)
+            return MD::Error_t::NOT_CONNECTED;
+
+        return MD::Error_t::OK;
+    }
+
+    // Only CAN FD
     template <typename... T>
     Error_t readRegisters(T &...message)
     {
@@ -409,9 +438,7 @@ public:
          memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
          bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
          ...);
-        printHexBuffer(buffer, sizeof(buffer));
 
-        Serial.println(bufferSize);
         auto result = sendFD(buffer, respBuffer, bufferSize);
         if (result != MD::Error_t::OK)
             return MD::Error_t::NOT_CONNECTED;
@@ -422,9 +449,10 @@ public:
          { memcpy(&message.value, respBuffer + bufferSize + sizeof(message.registerID), sizeof(message.value)); 
         bufferSize+=sizeof(message.value)+sizeof(message.registerID); }(),
          ...);
-        printHexBuffer(respBuffer, sizeof(respBuffer));
+        // printHexBuffer(respBuffer2, sizeof(respBuffer));
         return MD::Error_t::OK;
     }
+#endif
 
     /// @brief Blink the built-in LEDs
     Error_t blink();

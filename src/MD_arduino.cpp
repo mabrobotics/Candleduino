@@ -67,24 +67,14 @@ MD::Error_t MD::sendFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t bufferLengt
     {
         tx_msg.buf[i] = buffer[i];
     }
+
     m_Can.write(tx_msg);
 
-    // delayMicroseconds(500);
-    m_Can.events();
-    bool popped = false;
+    delayMicroseconds(1000);
 
-    for (int i = 0; i < FIFO_CAPACITY; i++)
-    {
-        if (m_receiveQueue.count > 0)
-        {
-            queuePop(&m_receiveQueue, respBuffer);
-            popped = true;
-            break;
-        }
-    }
+    memcpy(respBuffer, respBuffer2, bufferLength);
 
-    if (!popped)
-        return MD::Error_t::TRANSFER_FAILED;
+    memset(respBuffer2, 0, sizeof(respBuffer2));
 
     return MD::Error_t::OK;
 }
@@ -94,27 +84,22 @@ MD::Error_t MD::send(uint8_t buffer[8], uint8_t respBuffer[8])
 
     CAN_message_t tx_msg;
     tx_msg.id = m_canId;
-    memcpy(tx_msg.buf, buffer, MAB_CAN_BUFF_SIZE);
+
     tx_msg.len = MAB_CAN_BUFF_SIZE;
     tx_msg.flags.extended = 0;
-    m_Can.write(tx_msg);
 
-    delayMicroseconds(500);
-    m_Can.events();
-    bool popped = false;
-
-    for (int i = 0; i < FIFO_CAPACITY; i++)
+    for (uint8_t i = 0; i < MAB_CAN_BUFF_SIZE; i++)
     {
-        if (m_receiveQueue.count > 0)
-        {
-            queuePop(&m_receiveQueue, respBuffer);
-            popped = true;
-            break;
-        }
+        tx_msg.buf[i] = buffer[i];
     }
 
-    if (!popped)
-        return MD::Error_t::TRANSFER_FAILED;
+    m_Can.write(tx_msg);
+
+    delayMicroseconds(1000);
+
+    memcpy(respBuffer, respBuffer2, MAB_CAN_BUFF_SIZE);
+
+    memset(respBuffer2, 0, sizeof(respBuffer2));
 
     return MD::Error_t::OK;
 }
@@ -140,7 +125,7 @@ void MD::canCallbackFD(const CANFD_message_t &msg)
 void MD::handleMessageFD(const CANFD_message_t &msg)
 {
     if (msg.id == (uint32_t)m_canId)
-        queuePush(&m_receiveQueue, msg.buf);
+        memcpy(respBuffer2, msg.buf, sizeof(msg.buf));
 }
 
 #else
