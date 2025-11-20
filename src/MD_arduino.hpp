@@ -19,7 +19,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-
+// #pragma once
 #include "mab_types.hpp"
 #include "mab_can.hpp"
 #include "mab_queue/mab_queue.h"
@@ -163,18 +163,21 @@
     MD_REG(BootloaderFixed, u8, 0x812, RO)           \
     MD_REG(MiscStatus, u32, 0x813, RO)
 */
-#define USE_CANFD 1
+
 class MD
 {
 
 public:
+    bool FD = false;
+
     enum class Error_t : u8
     {
         UNKNOWN_ERROR,
         OK,
         REQUEST_INVALID,
         TRANSFER_FAILED,
-        NOT_CONNECTED
+        NOT_CONNECTED,
+        WRONG_MODE
     };
 
     template <typename T>
@@ -189,14 +192,15 @@ protected:
     Error_t sendFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t length);
     FifoFrame_S m_receiveQueue;
     static MD *instance;
-
+    uint8_t rxBuffer[MAB_CAN_BUFF_SIZE] = {0};
+    uint8_t rxLen = 0;
+    unsigned long rxId;
     uint8_t respBuffer2[64] = {0};
+    int m_SPI_CS_PIN = 9;
 
 public:
 #if defined(ARDUINO_ARCH_AVR)
     MCP_CAN m_CAN;
-
-    int m_SPI_CS_PIN = 9;
 
     /// @brief Create MD object with deafult SPI CS pin 9
     /// @return
@@ -205,17 +209,20 @@ public:
     /// @brief Create MD object with custom SPI CS pin
     /// @return
     MD(mab::canId_t canId, int SPI_CS_PIN) : m_CAN(SPI_CS_PIN), m_canId(canId) {};
+
+    Error_t init();
 #elif defined(TEENSYDUINO)
-#if USE_CANFD
-    FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> m_Can;
-#else
-    FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> m_Can;
-#endif
-    /// @brief Default constructor
-    /// @return
-    MD(mab::canId_t canId) : m_canId(canId)
+    FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> m_CanFD;
+    FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> *m_Can;
+
+    MD(mab::canId_t canId, bool isFD = false) : m_canId(canId)
     {
         instance = this;
+        FD = isFD;
+        if (!FD)
+        {
+            m_Can = new FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16>();
+        }
     };
 
     void handleMessage(const CAN_message_t &msg);
@@ -230,47 +237,43 @@ public:
     /// @return
     static void canCallbackFD(const CANFD_message_t &msg);
 
-#else
-    /// @brief Default constructor
-    /// @return
-    MD(mab::canId_t canId) : m_canId(canId) {};
-#endif
     /// @brief Initialize MD CAN communication
     /// @return
 
-#if defined(TEENSYDUINO)
     Error_t init()
     {
+        if (FD)
+        {
+            Serial.println("CANFD");
+            CANFD_timings_t config;
+            config.clock = CLK_24MHz;
+            config.baudrate = 1000000;
+            config.baudrateFD = 1000000;
+            config.propdelay = 190;
+            config.bus_length = 1;
+            config.sample = 70;
+            m_CanFD.begin();
+            m_CanFD.setBaudRate(config);
+            m_CanFD.setRegions(64);
+            m_CanFD.onReceive(MB0, canCallbackFD);
+            m_CanFD.enableMBInterrupts();
+        }
+        else
+        {
+            Serial.println("CAN2.0");
+            m_Can->begin();
+            m_Can->setBaudRate(1000000);
+            m_Can->setMaxMB(16);
+            m_Can->enableFIFO();
+            m_Can->enableFIFOInterrupt();
+            m_Can->onReceive(canCallback);
+        }
 
-#if USE_CANFD
-        Serial.println("CANFD");
-        CANFD_timings_t config;
-        config.clock = CLK_24MHz;
-        config.baudrate = 1000000;
-        config.baudrateFD = 1000000;
-        config.propdelay = 190;
-        config.bus_length = 1;
-        config.sample = 70;
-        m_Can.begin();
-        m_Can.setBaudRate(config);
-        m_Can.setRegions(64);
-        m_Can.onReceive(MB0, canCallbackFD);
-        m_Can.enableMBInterrupts();
-        // m_Can.mailboxStatus();
-
-#else
-        Serial.println("CAN2.0");
-        m_Can.begin();
-        m_Can.setBaudRate(1000000);
-        m_Can.setMaxMB(16);
-        m_Can.enableFIFO();
-        m_Can.enableFIFOInterrupt();
-        m_Can.onReceive(canCallback);
-#endif
         Serial.println("CAN begin done"); // confirm this runs
         return MD::Error_t::OK;
     }
 #else
+    MD(mab::canId_t canId) : m_canId(canId) {};
     Error_t init();
 #endif
 
@@ -284,7 +287,11 @@ public:
     void printHexBuffer(const uint8_t *buf, size_t len)
     {
         for (size_t i = 0; i < len; i++)
-            Serial.printf("%02X ", buf[i]);
+        {
+            Serial.print(int(buf[i]));
+            Serial.print(" ");
+        }
+
         Serial.println();
     }
 
@@ -301,34 +308,35 @@ public:
     Error_t writeRegister(uint16_t registerId, T registerData)
     {
 
-#if USE_CANFD
-        uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
-        uint8_t buffer[bufferSize] = {0};
-        uint8_t respBuffer[bufferSize] = {0};
-        buffer[0] = FRAME_WRITE_REGISTER_FD;
-        buffer[1] = 0x00;
+        if (FD)
+        {
+            uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
+            uint8_t buffer[bufferSize] = {0};
+            uint8_t respBuffer[bufferSize] = {0};
+            buffer[0] = FRAME_WRITE_REGISTER_FD;
+            buffer[1] = 0x00;
 
-        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
+            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
-        auto result = sendFD(buffer, respBuffer, bufferSize);
-        if (result != MD::Error_t::OK)
-            return MD::Error_t::NOT_CONNECTED;
+            auto result = sendFD(buffer, respBuffer, bufferSize);
+            if (result != MD::Error_t::OK)
+                return MD::Error_t::NOT_CONNECTED;
+        }
+        else
+        {
+            uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
+            uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
+            buffer[0] = FRAME_WRITE_REGISTER;
+            buffer[1] = 0x00;
 
-#else
-        uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-        uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-        buffer[0] = FRAME_WRITE_REGISTER_FD;
-        buffer[1] = 0x00;
+            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
-        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
-
-        auto result = send(buffer, respBuffer);
-        if (result != MD::Error_t::OK)
-            return MD::Error_t::NOT_CONNECTED;
-
-#endif
+            auto result = send(buffer, respBuffer);
+            if (result != MD::Error_t::OK)
+                return MD::Error_t::NOT_CONNECTED;
+        }
 
         return MD::Error_t::OK;
     }
@@ -350,37 +358,40 @@ public:
     template <typename T>
     Error_t readRegister(uint16_t registerId, T &registerData)
     {
+        if (FD)
+        {
+            uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
+            uint8_t buffer[bufferSize] = {0};
+            uint8_t respBuffer[bufferSize] = {0};
+            buffer[0] = FRAME_READ_REGISTER_FD;
+            buffer[1] = 0x00;
 
-#if USE_CANFD
-        uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
-        uint8_t buffer[bufferSize] = {0};
-        uint8_t respBuffer[bufferSize] = {0};
-        buffer[0] = FRAME_READ_REGISTER_FD;
-        buffer[1] = 0x00;
+            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
-        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
+            auto result = sendFD(buffer, respBuffer, bufferSize);
 
-        auto result = sendFD(buffer, respBuffer, bufferSize);
-        if (result != MD::Error_t::OK)
-            return MD::Error_t::NOT_CONNECTED;
+            if (result != MD::Error_t::OK)
+                return MD::Error_t::NOT_CONNECTED;
+            memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
+        }
+        else
+        {
+            uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
+            uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
+            buffer[0] = FRAME_READ_REGISTER;
+            buffer[1] = 0x00;
 
-#else
-        uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-        uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-        buffer[0] = FRAME_READ_REGISTER;
-        buffer[1] = 0x00;
+            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
+            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
-        memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-        memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
+            auto result = send(buffer, respBuffer);
 
-        auto result = send(buffer, respBuffer);
-        if (result != MD::Error_t::OK)
-            return MD::Error_t::NOT_CONNECTED;
+            if (result != MD::Error_t::OK)
+                return MD::Error_t::NOT_CONNECTED;
+            memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
+        }
 
-#endif
-
-        memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
         return MD::Error_t::OK;
     }
 
@@ -391,11 +402,22 @@ public:
         return MD::Error_t::OK;
     }
 
-#if USE_CANFD
-    // Only CAN FD
+#if defined(TEENSYDUINO)
+    /**
+     * @brief Writes data to registers CANFD only
+     *
+     * @param registerId    Register ID
+     * @param data    Data to store
+     * @param dataType  Data type
+     * @return  Error code indicating success or failure.
+     */
     template <typename... T>
     Error_t writeRegisters(T... message)
     {
+        if (!FD)
+        {
+            return Error_t::WRONG_MODE;
+        }
         size_t bufferSize = 2;
         ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
         uint8_t buffer[bufferSize] = {0};
@@ -419,10 +441,21 @@ public:
         return MD::Error_t::OK;
     }
 
-    // Only CAN FD
+    /**
+     * @brief Reads data from registers CANFD only
+     *
+     * @param registerId    Register ID
+     * @param data    Data to store
+     * @param dataType  Data type
+     * @return  Error code indicating success or failure.
+     */
     template <typename... T>
     Error_t readRegisters(T &...message)
     {
+        if (!FD)
+        {
+            return Error_t::WRONG_MODE;
+        }
         size_t bufferSize = 2;
         ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
         uint8_t buffer[bufferSize] = {0};
@@ -449,17 +482,43 @@ public:
          { memcpy(&message.value, respBuffer + bufferSize + sizeof(message.registerID), sizeof(message.value)); 
         bufferSize+=sizeof(message.value)+sizeof(message.registerID); }(),
          ...);
-        // printHexBuffer(respBuffer2, sizeof(respBuffer));
+
         return MD::Error_t::OK;
     }
+#else
+    template <typename... T>
+    Error_t writeRegisters(T &...message);
 #endif
-
     /// @brief Blink the built-in LEDs
     Error_t blink();
 
     /// @brief Enable PWM output of the drive
     /// @return
     Error_t enable();
+
+    /// @brief Disable PWM output of the drive
+    /// @return
+    Error_t disable();
+
+    /// @brief Reset the driver
+    /// @return
+    Error_t reset();
+
+    /// @brief Clear errors present in the driver
+    /// @return
+    Error_t clearErrors();
+
+    /// @brief Save configuration data to the memory
+    /// @return
+    Error_t save();
+
+    /// @brief Zero out the position of the encoder
+    /// @return
+    Error_t zero();
+
+    /// @brief Enable PWM output of the drive
+    /// @return
+    Error_t setMotionMode(motionModeMab_E motionMode);
 
     /// @brief Enable PWM output of the drive
     /// @return
@@ -469,93 +528,65 @@ public:
     /// @return
     Error_t getPolePairs(u32 &polePairs);
 
-    /// @brief Get Position
-    Error_t getPosition(f32 &position);
-
-    /// @brief Disable PWM output of the drive
+    /// @brief Get mosfet temperature
     /// @return
-    Error_t disable();
+    Error_t getMosfetTemperature(f32 &temperature);
 
-    // /// @brief Reset the driver
-    // /// @return
-    // Error_t reset();
+    /// @brief Set position controller PID parameters
+    /// @param kp
+    /// @param ki
+    /// @param kd
+    /// @param integralMax
+    /// @return
+    Error_t setPositionPIDparam(float kp, float ki, float kd, float integralMax);
 
-    // /// @brief Clear errors present in the driver
-    // /// @return
-    // Error_t clearErrors();
+    /// @brief Set velocity controller PID parameters
+    /// @param kp
+    /// @param ki
+    /// @param kd
+    /// @param integralMax
+    /// @return
+    Error_t setVelocityPIDparam(float kp, float ki, float kd, float integralMax);
 
-    // /// @brief Save configuration data to the memory
-    // /// @return
-    // Error_t save();
+    /// @brief Set impedance controller parameters
+    /// @param kp
+    /// @param kd
+    /// @return
+    Error_t setImpedanceParams(float kp, float kd);
 
-    // /// @brief Zero out the position of the encoder
-    // /// @return
-    // Error_t zero();
+    /// @brief Set target position
+    /// @param position target position in radians
+    /// @return
+    Error_t setTargetPosition(float position /*rad*/);
 
-    // /// @brief Set current limit associated with motor that is driven
-    // /// @param currentLimit Current limit in Amps
-    // /// @return
-    // Error_t setCurrentLimit(float currentLimit /*A*/);
+    /// @brief Get target position
+    /// @param position target position in radians
+    /// @return
+    Error_t getTargetPosition(float &position /*rad*/);
 
-    // /// @brief Set update rate for the torque control loop
-    // /// @param torqueBandwidth Update rate in Hz
-    // /// @return
-    // Error_t setTorqueBandwidth(u16 torqueBandwidth /*Hz*/);
+    /// @brief Set target velocity
+    /// @param velocity target velocity in radians per second
+    /// @return
+    Error_t setTargetVelocity(float velocity /*rad/s*/);
 
-    // /// @brief Set controller mode
-    // /// @param mode Mode selected
-    // /// @return
-    // Error_t setMotionMode(mab::MdMode_E mode);
+    /// @brief Get target velocity
+    /// @param velocity target velocity in radians per second
+    /// @return
+    Error_t getTargetVelocity(float &velocity /*rad/s*/);
 
-    // /// @brief Set position controller PID parameters
-    // /// @param kp
-    // /// @param ki
-    // /// @param kd
-    // /// @param integralMax
-    // /// @return
-    // Error_t setPositionPIDparam(float kp, float ki, float kd, float integralMax);
+    /// @brief Get Position from main encoder
+    Error_t getMainEncoderPosition(float &position);
 
-    // /// @brief Set velocity controller PID parameters
-    // /// @param kp
-    // /// @param ki
-    // /// @param kd
-    // /// @param integralMax
-    // /// @return
-    // Error_t setVelocityPIDparam(float kp, float ki, float kd, float integralMax);
+    /// @brief Get Position from main encoder
+    Error_t getMainEncoderVelocity(float &position);
 
-    // /// @brief Set impedance controller parameters
-    // /// @param kp
-    // /// @param kd
-    // /// @return
-    // Error_t setImpedanceParams(float kp, float kd);
+    /// @brief Set target torque
+    /// @param torque target torque in Nm
+    /// @return
+    Error_t getOutputEncoderPos(float &position /*Nm*/);
 
-    // /// @brief Set max torque to be output by the controller
-    // /// @param maxTorque max torque value in Nm
-    // /// @return
-    // Error_t setMaxTorque(float maxTorque /*Nm*/);
-
-    // /// @brief Set target velocity of the profile movement
-    // /// @param profileVelocity
-    // /// @return
-    // Error_t setProfileVelocity(float profileVelocity /*s^-1*/);
-
-    // /// @brief Set target profile acceleration when performing profile movement
-    // /// @param profileAcceleration
-    // /// @return
-    // Error_t setProfileAcceleration(float profileAcceleration /*s^-2*/);
-
-    // /// @brief Set target position
-    // /// @param position target position in radians
-    // /// @return
-    // Error_t setTargetPosition(float position /*rad*/);
-
-    // /// @brief Set target velocity
-    // /// @param velocity target velocity in radians per second
-    // /// @return
-    // Error_t setTargetVelocity(float velocity /*rad/s*/);
-
-    // /// @brief Set target torque
-    // /// @param torque target torque in Nm
-    // /// @return
-    // Error_t setTargetTorque(float torque /*Nm*/);
+    /// @brief Set target torque
+    /// @param torque target torque in Nm
+    /// @return
+    Error_t getOutputEncoderVel(float &velocity /*rad*/);
 };
