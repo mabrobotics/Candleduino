@@ -19,8 +19,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-// #pragma once
-#include "mab_types.hpp"
+
 #include "mab_can.hpp"
 #include "mab_queue/mab_queue.h"
 
@@ -38,131 +37,6 @@
 #endif
 
 #define MAB_CAN_BUFF_SIZE 8
-/*
-#define REGISTER_LIST                                \
-    MD_REG(Nullreg, u8, 0x000, RO)                   \
-    MD_REG(CanID, u32, 0x001, RW)                    \
-    MD_REG(CanBaudrate, u32, 0x002, RW)              \
-    MD_REG(CanWatchdog, u16, 0x003, RW)              \
-    MD_REG(CanTermination, u8, 0x004, RW)            \
-                                                     \
-    MD_REG(MotorPolePairs, u32, 0x011, RW)           \
-    MD_REG(MotorKt, float, 0x012, RW)                \
-    MD_REG(MotorKtPhaseA, float, 0x013, RW)          \
-    MD_REG(MotorKtPhaseB, float, 0x014, RW)          \
-    MD_REG(MotorKtPhaseC, float, 0x015, RW)          \
-    MD_REG(MotorIMax, float, 0x016, RW)              \
-    MD_REG(MotorGearRatio, float, 0x017, RW)         \
-    MD_REG(MotorTorqueBandwidth, u16, 0x018, RW)     \
-    MD_REG(MotorFriction, float, 0x019, RW)          \
-    MD_REG(MotorStiction, float, 0x01A, RW)          \
-    MD_REG(MotorResistance, float, 0x01B, RO)        \
-    MD_REG(MotorInductance, float, 0x01C, RO)        \
-    MD_REG(MotorKV, u16, 0x01D, RW)                  \
-    MD_REG(MotorCalibrationMode, u8, 0x01E, RW)      \
-    MD_REG(MotorThermistorType, u8, 0x01F, RW)       \
-                                                     \
-    MD_REG(AuxEncoder, u8, 0x020, RW)                \
-    MD_REG(AuxEncoderDir, u8, 0x021, WO)             \
-    MD_REG(AuxEncoderDefaultBaud, u32, 0x022, RW)    \
-    MD_REG(AuxEncoderVelocity, float, 0x023, RO)     \
-    MD_REG(AuxEncoderPosition, float, 0x024, RO)     \
-    MD_REG(AuxEncoderMode, u8, 0x025, RW)            \
-    MD_REG(AuxEncoderCalibrationMode, u8, 0x026, RW) \
-                                                     \
-    MD_REG(MotorPosPidKp, float, 0x030, RW)          \
-    MD_REG(MotorPosPidKi, float, 0x031, RW)          \
-    MD_REG(MotorPosPidKd, float, 0x032, RW)          \
-    MD_REG(MotorPosPidWindup, float, 0x034, RW)      \
-                                                     \
-    MD_REG(MotorVelPidKp, float, 0x040, RW)          \
-    MD_REG(MotorVelPidKi, float, 0x041, RW)          \
-    MD_REG(MotorVelPidKd, float, 0x042, RW)          \
-    MD_REG(MotorVelPidWindup, float, 0x044, RW)      \
-                                                     \
-    MD_REG(MotorImpPidKp, float, 0x050, RW)          \
-    MD_REG(MotorImpPidKd, float, 0x051, RW)          \
-                                                     \
-    MD_REG(MainEncoderVelocity, float, 0x062, RO)    \
-    MD_REG(MainEncoderPosition, float, 0x063, RO)    \
-    MD_REG(MotorTorque, float, 0x064, RO)            \
-                                                     \
-    MD_REG(HomingMode, u8, 0x070, RW)                \
-    MD_REG(HomingMaxTravel, float, 0x071, RW)        \
-    MD_REG(HomingVelocity, float, 0x072, RW)         \
-    MD_REG(HomingTorque, float, 0x073, RW)           \
-                                                     \
-    MD_REG(RunSaveCmd, u8, 0x080, WO)                \
-    MD_REG(RunTestMainEncoderCmd, u8, 0x081, WO)     \
-    MD_REG(RunTestAuxEncoderCmd, u8, 0x082, WO)      \
-    MD_REG(RunCalibrateCmd, u8, 0x083, WO)           \
-    MD_REG(RunCalibrateAuxEncoderCmd, u8, 0x084, WO) \
-    MD_REG(RunCalibratePiGains, u8, 0x085, WO)       \
-    MD_REG(RunHoming, u8, 0x086, WO)                 \
-    MD_REG(RunRestoreFactoryConfig, u8, 0x087, WO)   \
-    MD_REG(RunReset, u8, 0x088, WO)                  \
-    MD_REG(RunClearWarnings, u8, 0x089, WO)          \
-    MD_REG(RunClearErrors, u8, 0x08A, WO)            \
-    MD_REG(RunBlink, u8, 0x08B, WO)                  \
-    MD_REG(RunZero, u8, 0x08C, WO)                   \
-    MD_REG(RunCanReinit, u8, 0x08D, WO)              \
-                                                     \
-    MD_REG(CalAuxEncoderStdDev, float, 0x100, RO)    \
-    MD_REG(CalAuxEncoderMinE, float, 0x101, RO)      \
-    MD_REG(CalAuxEncoderMaxE, float, 0x102, RO)      \
-    MD_REG(CalMainEncoderStdDev, float, 0x103, RO)   \
-    MD_REG(CalMainEncoderMinE, float, 0x104, RO)     \
-    MD_REG(CalMainEncoderMaxE, float, 0x105, RO)     \
-                                                     \
-    MD_REG(PositionLimitMax, float, 0x110, RW)       \
-    MD_REG(PositionLimitMin, float, 0x111, RW)       \
-    MD_REG(MaxTorque, float, 0x112, RW)              \
-    MD_REG(MaxVelocity, float, 0x113, RW)            \
-    MD_REG(MaxAcceleration, float, 0x114, RW)        \
-    MD_REG(MaxDeceleration, float, 0x115, RW)        \
-                                                     \
-    MD_REG(ProfileVelocity, f32, 0x120, RW)          \
-    MD_REG(ProfileAcceleration, f32, 0x121, RW)      \
-    MD_REG(ProfileDeceleration, f32, 0x122, RW)      \
-    MD_REG(QuickStopDeceleration, f32, 0x123, RW)    \
-    MD_REG(PositionWindow, f32, 0x124, RW)           \
-    MD_REG(VelocityWindow, f32, 0x125, RW)           \
-                                                     \
-    MD_REG(MotionModeCommand, u8, 0x140, WO)         \
-    MD_REG(MotionModeStatus, u8, 0x141, RO)          \
-    MD_REG(State, u16, 0x142, RW)                    \
-                                                     \
-    MD_REG(TargetPosition, float, 0x150, RW)         \
-    MD_REG(TargetVelocity, float, 0x151, RW)         \
-    MD_REG(TargetTorque, float, 0x152, RW)           \
-                                                     \
-    MD_REG(UserGpioConfiguration, u8, 0x160, RW)     \
-    MD_REG(UserGpioState, u16, 0x161, RO)            \
-                                                     \
-    MD_REG(ReverseDirection, u8, 0x600, RW)          \
-                                                     \
-    MD_REG(ShuntResistance, float, 0x700, RW)        \
-                                                     \
-    MD_REG(BuildDate, u32, 0x800, RO)                \
-    MD_REG(FirmwareVersion, u32, 0x802, RO)          \
-    MD_REG(LegacyHardwareVersion, u8, 0x803, RO)     \
-    MD_REG(BridgeType, u8, 0x804, RO)                \
-    MD_REG(QuickStatus, u16, 0x805, RO)              \
-    MD_REG(MosfetTemperature, f32, 0x806, RO)        \
-    MD_REG(MotorTemperature, f32, 0x807, RO)         \
-    MD_REG(MotorShutdownTemp, u8, 0x808, RW)         \
-    MD_REG(MainEncoderStatus, u32, 0x809, RO)        \
-    MD_REG(AuxEncoderStatus, u32, 0x80A, RO)         \
-    MD_REG(CalibrationStatus, u32, 0x80B, RO)        \
-    MD_REG(BridgeStatus, u32, 0x80C, RO)             \
-    MD_REG(HardwareStatus, u32, 0x80D, RO)           \
-    MD_REG(CommunicationStatus, u32, 0x80E, RO)      \
-    MD_REG(HomingStatus, u32, 0x80F, RO)             \
-    MD_REG(MotionStatus, u32, 0x810, RO)             \
-    MD_REG(DcBusVoltage, f32, 0x811, RO)             \
-    MD_REG(BootloaderFixed, u8, 0x812, RO)           \
-    MD_REG(MiscStatus, u32, 0x813, RO)
-*/
 
 class MD
 {
@@ -170,7 +44,7 @@ class MD
 public:
     bool FD = false;
 
-    enum class Error_t : u8
+    enum class Error_t : uint8_t
     {
         UNKNOWN_ERROR,
         OK,
@@ -187,16 +61,21 @@ public:
         T value;
     };
 
+    /// @brief MD can node ID
+    uint16_t m_canId;
+
 protected:
-    Error_t send(uint8_t buffer[8], uint8_t respBuffer[8]);
+    Error_t writeRead(uint8_t buffer[8], uint8_t respBuffer[8]);
     Error_t sendFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t length);
     FifoFrame_S m_receiveQueue;
     static MD *instance;
     uint8_t rxBuffer[MAB_CAN_BUFF_SIZE] = {0};
     uint8_t rxLen = 0;
     unsigned long rxId;
-    uint8_t respBuffer2[64] = {0};
+    static uint8_t respBuffer2[64];
     int m_SPI_CS_PIN = 9;
+
+    static uint32_t rxFDID;
 
 public:
 #if defined(ARDUINO_ARCH_AVR)
@@ -204,25 +83,27 @@ public:
 
     /// @brief Create MD object with deafult SPI CS pin 9
     /// @return
-    MD(mab::canId_t canId) : m_CAN(m_SPI_CS_PIN), m_canId(canId) {};
+    MD(uint16_t canId) : m_CAN(m_SPI_CS_PIN), m_canId(canId) {};
 
     /// @brief Create MD object with custom SPI CS pin
     /// @return
-    MD(mab::canId_t canId, int SPI_CS_PIN) : m_CAN(SPI_CS_PIN), m_canId(canId) {};
+    MD(uint16_t canId, int SPI_CS_PIN) : m_CAN(SPI_CS_PIN), m_canId(canId) {};
 
     Error_t init();
 #elif defined(TEENSYDUINO)
-    FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> m_CanFD;
-    FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> *m_Can;
+    FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> *m_CanFD = nullptr;
+    FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> *m_Can = nullptr;
 
-    MD(mab::canId_t canId, bool isFD = false) : m_canId(canId)
+    MD(uint16_t canId, FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> *canBus) : m_canId(canId), m_Can(canBus)
     {
         instance = this;
-        FD = isFD;
-        if (!FD)
-        {
-            m_Can = new FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16>();
-        }
+    };
+
+    MD(uint16_t canId, FlexCAN_T4FD<CAN3, RX_SIZE_256, TX_SIZE_16> *canBusFD) : m_canId(canId), m_CanFD(canBusFD)
+    {
+        if (m_CanFD)
+            FD = true;
+        instance = this;
     };
 
     void handleMessage(const CAN_message_t &msg);
@@ -242,7 +123,7 @@ public:
 
     Error_t init()
     {
-        if (FD)
+        if (m_CanFD)
         {
             Serial.println("CANFD");
             CANFD_timings_t config;
@@ -252,11 +133,11 @@ public:
             config.propdelay = 190;
             config.bus_length = 1;
             config.sample = 70;
-            m_CanFD.begin();
-            m_CanFD.setBaudRate(config);
-            m_CanFD.setRegions(64);
-            m_CanFD.onReceive(MB0, canCallbackFD);
-            m_CanFD.enableMBInterrupts();
+            m_CanFD->begin();
+            m_CanFD->setBaudRate(config);
+            m_CanFD->setRegions(64);
+            m_CanFD->onReceive(MB0, canCallbackFD);
+            m_CanFD->enableMBInterrupts();
         }
         else
         {
@@ -273,16 +154,13 @@ public:
         return MD::Error_t::OK;
     }
 #else
-    MD(mab::canId_t canId) : m_canId(canId) {};
+    MD(uint16_t canId) : m_canId(canId) {};
     Error_t init();
 #endif
 
     /// @brief Update receive queue
     /// @return
-    Error_t update();
-
-    /// @brief MD can node ID
-    mab::canId_t m_canId;
+    Error_t receive();
 
     void printHexBuffer(const uint8_t *buf, size_t len)
     {
@@ -300,16 +178,15 @@ public:
      *
      * @param registerId    Register ID
      * @param data    Data to write
-     * @param dataType  Data type
      * @return  Error code indicating success or failure.
      */
 
     template <typename T>
     Error_t writeRegister(uint16_t registerId, T registerData)
     {
-
         if (FD)
         {
+#if defined(TEENSYDUINO)
             uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
             uint8_t buffer[bufferSize] = {0};
             uint8_t respBuffer[bufferSize] = {0};
@@ -322,6 +199,7 @@ public:
             auto result = sendFD(buffer, respBuffer, bufferSize);
             if (result != MD::Error_t::OK)
                 return MD::Error_t::NOT_CONNECTED;
+#endif
         }
         else
         {
@@ -333,7 +211,7 @@ public:
             memcpy(buffer + 2, &registerId, sizeof(uint16_t));
             memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
-            auto result = send(buffer, respBuffer);
+            auto result = writeRead(buffer, respBuffer);
             if (result != MD::Error_t::OK)
                 return MD::Error_t::NOT_CONNECTED;
         }
@@ -352,7 +230,6 @@ public:
      *
      * @param registerId    Register ID
      * @param data    Data to store
-     * @param dataType  Data type
      * @return  Error code indicating success or failure.
      */
     template <typename T>
@@ -360,6 +237,7 @@ public:
     {
         if (FD)
         {
+#if defined(TEENSYDUINO)
             uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
             uint8_t buffer[bufferSize] = {0};
             uint8_t respBuffer[bufferSize] = {0};
@@ -374,6 +252,7 @@ public:
             if (result != MD::Error_t::OK)
                 return MD::Error_t::NOT_CONNECTED;
             memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
+#endif
         }
         else
         {
@@ -385,7 +264,7 @@ public:
             memcpy(buffer + 2, &registerId, sizeof(uint16_t));
             memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
 
-            auto result = send(buffer, respBuffer);
+            auto result = writeRead(buffer, respBuffer);
 
             if (result != MD::Error_t::OK)
                 return MD::Error_t::NOT_CONNECTED;
@@ -485,9 +364,6 @@ public:
 
         return MD::Error_t::OK;
     }
-#else
-    template <typename... T>
-    Error_t writeRegisters(T &...message);
 #endif
     /// @brief Blink the built-in LEDs
     Error_t blink();
@@ -526,11 +402,11 @@ public:
 
     /// @brief Get Pole Pairs value
     /// @return
-    Error_t getPolePairs(u32 &polePairs);
+    Error_t getPolePairs(uint32_t &polePairs);
 
     /// @brief Get mosfet temperature
     /// @return
-    Error_t getMosfetTemperature(f32 &temperature);
+    Error_t getMosfetTemperature(float &temperature);
 
     /// @brief Set position controller PID parameters
     /// @param kp
