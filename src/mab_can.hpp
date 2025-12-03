@@ -95,6 +95,18 @@ typedef enum
 
 } MDRegister;
 
+#include <cstdint>
+
+enum class Error_t : uint8_t
+{
+    UNKNOWN_ERROR,
+    OK,
+    REQUEST_INVALID,
+    TRANSFER_FAILED,
+    NOT_CONNECTED,
+    WRONG_MODE
+};
+
 /**
  * @brief Enumeration of possible error codes returned by MAB CAN functions.
  *
