@@ -19,7 +19,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-
+#pragma once
 #include "mab_can.hpp"
 #include "mab_queue/mab_queue.h"
 
@@ -44,19 +44,12 @@ class MAB_DEVICE
 public:
     bool FD = false;
 
-    template <typename T>
-    struct Message
-    {
-        uint16_t registerID;
-        T value;
-    };
-
     /// @brief MD can node ID
     uint16_t m_canId;
 
     CANFD_message_t messages[FIFO_CAPACITY];
     Error_t writeRead(uint8_t buffer[8], uint8_t respBuffer[8]);
-    Error_t writeReadFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t length);
+    Error_t writeReadFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t bufferLength, uint8_t responseBufferDiff = 0);
     FifoFrame_S m_receiveQueue;
     static FifoCANFD_S QUEUE_FD;
     static MAB_DEVICE *instance;
@@ -163,197 +156,4 @@ public:
 
         Serial.println();
     }
-
-    /**
-     * @brief Writes data to register
-     *
-     * @param registerId    Register ID
-     * @param data    Data to write
-     * @return  Error code indicating success or failure.
-     */
-
-    template <typename T>
-    Error_t writeRegister(uint16_t registerId, T registerData)
-    {
-        if (FD)
-        {
-#if defined(TEENSYDUINO)
-            uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
-            uint8_t buffer[bufferSize] = {0};
-            uint8_t respBuffer[bufferSize] = {0};
-            buffer[0] = FRAME_WRITE_REGISTER_FD;
-            buffer[1] = 0x00;
-
-            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
-
-            auto result = writeReadFD(buffer, respBuffer, bufferSize); //--------------------------------------------------
-            if (result != Error_t::OK)
-                return Error_t::NOT_CONNECTED;
-#endif
-        }
-        else
-        {
-            uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-            uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-            buffer[0] = FRAME_WRITE_REGISTER;
-            buffer[1] = 0x00;
-
-            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
-
-            auto result = writeRead(buffer, respBuffer);
-            if (result != Error_t::OK)
-                return Error_t::NOT_CONNECTED;
-        }
-
-        return Error_t::OK;
-    }
-
-    template <typename T>
-    Error_t writeRegister(MAB_DEVICE::Message<T> registerData)
-    {
-        return writeRegister(registerData.registerID, registerData.value);
-    }
-
-    /**
-     * @brief Reads data from register
-     *
-     * @param registerId    Register ID
-     * @param data    Data to store
-     * @return  Error code indicating success or failure.
-     */
-    template <typename T>
-    Error_t readRegister(uint16_t registerId, T &registerData)
-    {
-        if (FD)
-        {
-#if defined(TEENSYDUINO)
-            uint8_t bufferSize = 2 + sizeof(uint16_t) + sizeof(registerData);
-            uint8_t buffer[bufferSize] = {0};
-            uint8_t respBuffer[bufferSize] = {0};
-            buffer[0] = FRAME_READ_REGISTER_FD;
-            buffer[1] = 0x00;
-
-            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
-
-            auto result = writeReadFD(buffer, respBuffer, bufferSize);
-
-            if (result != Error_t::OK)
-                return Error_t::NOT_CONNECTED;
-            memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
-#endif
-        }
-        else
-        {
-            uint8_t buffer[MAB_CAN_BUFF_SIZE] = {0};
-            uint8_t respBuffer[MAB_CAN_BUFF_SIZE] = {0};
-            buffer[0] = FRAME_READ_REGISTER;
-            buffer[1] = 0x00;
-
-            memcpy(buffer + 2, &registerId, sizeof(uint16_t));
-            memcpy(buffer + 2 + sizeof(uint16_t), &registerData, sizeof(registerData));
-
-            auto result = writeRead(buffer, respBuffer);
-
-            if (result != Error_t::OK)
-                return Error_t::NOT_CONNECTED;
-            memcpy(&registerData, respBuffer + 2 + sizeof(uint16_t), sizeof(T));
-        }
-
-        return Error_t::OK;
-    }
-
-    template <typename T>
-    Error_t readRegister(MAB_DEVICE::Message<T> &registerData)
-    {
-        readRegister(uint16_t(registerData.registerID), registerData.value);
-        return Error_t::OK;
-    }
-
-#if defined(TEENSYDUINO)
-    /**
-     * @brief Writes data to registers CANFD only
-     *
-     * @param registerId    Register ID
-     * @param data    Data to store
-     * @param dataType  Data type
-     * @return  Error code indicating success or failure.
-     */
-    template <typename... T>
-    Error_t writeRegisters(T... message)
-    {
-        if (!FD)
-        {
-            return Error_t::WRONG_MODE;
-        }
-        size_t bufferSize = 2;
-        ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
-        uint8_t buffer[bufferSize] = {0};
-        uint8_t respBuffer[bufferSize] = {0};
-        bufferSize = 2;
-
-        buffer[0] = FRAME_WRITE_REGISTER_FD;
-        buffer[1] = 0x00;
-
-        ([&]()
-         {
-         memcpy(buffer + bufferSize, &message.registerID, sizeof(uint16_t));
-         memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
-         bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
-         ...);
-        auto result = writeReadFD(buffer, respBuffer, bufferSize);
-
-        if (result != Error_t::OK)
-            return Error_t::NOT_CONNECTED;
-
-        return Error_t::OK;
-    }
-
-    /**
-     * @brief Reads data from registers CANFD only
-     *
-     * @param registerId    Register ID
-     * @param data    Data to store
-     * @param dataType  Data type
-     * @return  Error code indicating success or failure.
-     */
-    template <typename... T>
-    Error_t readRegisters(T &...message)
-    {
-        if (!FD)
-        {
-            return Error_t::WRONG_MODE;
-        }
-        size_t bufferSize = 2;
-        ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
-        uint8_t buffer[bufferSize] = {0};
-        uint8_t respBuffer[bufferSize] = {0};
-        bufferSize = 2;
-
-        buffer[0] = FRAME_READ_REGISTER_FD;
-        buffer[1] = 0x00;
-
-        ([&]()
-         {
-         memcpy(buffer + bufferSize, &message.registerID, sizeof(uint16_t));
-         memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
-         bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
-         ...);
-
-        auto result = writeReadFD(buffer, respBuffer, bufferSize);
-        if (result != Error_t::OK)
-            return Error_t::NOT_CONNECTED;
-
-        bufferSize = 2;
-
-        ([&]()
-         { memcpy(&message.value, respBuffer + bufferSize + sizeof(message.registerID), sizeof(message.value)); 
-        bufferSize+=sizeof(message.value)+sizeof(message.registerID); }(),
-         ...);
-
-        return Error_t::OK;
-    }
-#endif
 };

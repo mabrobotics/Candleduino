@@ -71,12 +71,11 @@ Error_t MAB_DEVICE::receive()
 }
 #elif defined(TEENSYDUINO)
 
-Error_t MAB_DEVICE::writeReadFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t bufferLength)
+Error_t MAB_DEVICE::writeReadFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t bufferLength, uint8_t responseBufferDiff)
 {
-
     CANFD_message_t tx_msg;
     tx_msg.id = m_canId;
-    tx_msg.len = bufferLength;
+    tx_msg.len = bufferLength - responseBufferDiff;
     tx_msg.flags.extended = 0;
     tx_msg.esi = 1;
     tx_msg.brs = 0;
