@@ -43,15 +43,19 @@ class MAB_DEVICE
 
 public:
     bool FD = false;
-
+#if defined(ARDUINO_ARCH_AVR)
+    MCP_CAN m_CAN;
+#endif
     /// @brief MD can node ID
     uint16_t m_canId;
-
-    CANFD_message_t messages[FIFO_CAPACITY];
-    Error_t writeRead(uint8_t buffer[8], uint8_t respBuffer[8]);
+#if defined(TEENSYDUINO)
     Error_t writeReadFD(uint8_t *buffer, uint8_t *respBuffer, uint8_t bufferLength, uint8_t responseBufferDiff = 0);
-    FifoFrame_S m_receiveQueue;
     static FifoCANFD_S QUEUE_FD;
+    static uint32_t rxFDID;
+    CANFD_message_t messages[FIFO_CAPACITY];
+#endif
+    Error_t writeRead(uint8_t buffer[8], uint8_t respBuffer[8]);
+    FifoFrame_S m_receiveQueue;
     static MAB_DEVICE *instance;
     uint8_t rxBuffer[MAB_CAN_BUFF_SIZE] = {0};
     uint8_t rxLen = 0;
@@ -59,11 +63,8 @@ public:
     static uint8_t SHARED_BUFFER[64];
     int m_SPI_CS_PIN = 9;
 
-    static uint32_t rxFDID;
-
 public:
 #if defined(ARDUINO_ARCH_AVR)
-    MCP_CAN m_CAN;
 
     /// @brief Create MD object with deafult SPI CS pin 9
     /// @return
@@ -138,7 +139,7 @@ public:
         return Error_t::OK;
     }
 #else
-    MD(uint16_t canId) : m_canId(canId) {};
+    MAB_DEVICE(uint16_t canId) : m_canId(canId) {};
     Error_t init();
 #endif
 

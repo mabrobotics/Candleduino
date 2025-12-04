@@ -9,13 +9,6 @@ void queueInit(FifoFrame_S *fifo)
     fifo->count = 0;
 }
 
-void queueInit(FifoCANFD_S *fifo)
-{
-    fifo->head = 0;
-    fifo->tail = 0;
-    fifo->count = 0;
-}
-
 bool queuePush(FifoFrame_S *fifo, const uint8_t *frame)
 {
     if (fifo->count >= FIFO_CAPACITY)
@@ -38,6 +31,23 @@ bool queuePop(FifoFrame_S *fifo, uint8_t *frameOut)
     fifo->count--;
 
     return true;
+}
+
+bool isQueueEmpty(const FifoFrame_S *fifo)
+{
+    return fifo->count == 0;
+}
+
+bool isQueueFull(const FifoFrame_S *fifo)
+{
+    return fifo->count == FIFO_CAPACITY;
+}
+#if defined(TEENSYDUINO)
+void queueInit(FifoCANFD_S *fifo)
+{
+    fifo->head = 0;
+    fifo->tail = 0;
+    fifo->count = 0;
 }
 
 bool queuePushMessage(FifoCANFD_S *fifo, const CANFD_message_t message)
@@ -68,22 +78,13 @@ uint16_t queueSeeId(FifoCANFD_S *fifo)
     return fifo->messages[fifo->head].id;
 }
 
-bool isQueueEmpty(const FifoFrame_S *fifo)
-{
-    return fifo->count == 0;
-}
-
 bool isQueueEmpty(const FifoCANFD_S *fifo)
 {
     return fifo->count == 0;
-}
-
-bool isQueueFull(const FifoFrame_S *fifo)
-{
-    return fifo->count == FIFO_CAPACITY;
 }
 
 bool isQueueFull(const FifoCANFD_S *fifo)
 {
     return fifo->count == FIFO_CAPACITY;
 }
+#endif

@@ -1,7 +1,8 @@
 #ifndef MAB_CAN_H
 #define MAB_CAN_H
 
-#include <cstdint>
+// #include <cstdint>
+#include <stdint.h>
 /** @brief Minimum valid CAN device ID. */
 #define CAN_MIN_ID ((uint32_t)10)
 /** @brief Maximum valid CAN device ID. */
@@ -95,7 +96,7 @@ typedef enum
     MOTOR_POLE_PAIRS = 0x011
 
 } MDRegister;
-
+#if defined(TEENSYDUINO)
 typedef enum
 {
     FRAME_WRITE_PROPERTY_FD = 0x21,
@@ -145,27 +146,10 @@ typedef enum
 
 } PDSModules;
 
-struct PDSModule
+struct PDSmodule
 {
     uint8_t type = 0;
     uint8_t index = 0;
-};
-
-template <typename T>
-struct Message
-{
-    uint16_t registerID;
-    T value;
-};
-
-enum class commands_E : uint8_t
-{
-
-    NULL_CMD = 0x00,
-    SHUTDOWN = 0x01,
-    REBOOT = 0x02,
-    SAVE_CONFIG = 0x03,
-
 };
 
 enum class statusBits_E : uint32_t
@@ -190,6 +174,25 @@ enum class statusBits_E : uint32_t
     SHUTDOWN_SCHEDULED = (1 << 20),
 
     /*...*/
+
+};
+
+#endif
+
+template <typename T>
+struct Message
+{
+    uint16_t registerID;
+    T value;
+};
+
+enum class commands_E : uint8_t
+{
+
+    NULL_CMD = 0x00,
+    SHUTDOWN = 0x01,
+    REBOOT = 0x02,
+    SAVE_CONFIG = 0x03,
 
 };
 

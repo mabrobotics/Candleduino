@@ -1,5 +1,5 @@
 #include "Candleduino.hpp"
-
+#if defined(TEENSYDUINO)
 class PDS : public MAB_DEVICE
 {
 public:
@@ -14,7 +14,7 @@ public:
      */
 
     template <typename T>
-    Error_t writeProperty(PDSModule module, uint8_t registerId, T registerData)
+    Error_t writeProperty(PDSmodule module, uint8_t registerId, T registerData)
     {
 
         uint8_t bufferSize = 4 + sizeof(uint8_t) + sizeof(uint32_t);
@@ -38,7 +38,7 @@ public:
     }
 
     template <typename T>
-    Error_t writeProperty(PDSModule module, Message<T> registerData)
+    Error_t writeProperty(PDSmodule module, Message<T> registerData)
     {
         return writeProperty(module, registerData.registerID, registerData.value);
     }
@@ -51,7 +51,7 @@ public:
      * @return  Error code indicating success or failure.
      */
     template <typename T>
-    Error_t readProperty(PDSModule module, uint8_t registerId, T &registerData)
+    Error_t readProperty(PDSmodule module, uint8_t registerId, T &registerData)
     {
         uint8_t bufferSize = 4 + sizeof(uint8_t) + sizeof(uint32_t);
         uint8_t buffer[bufferSize] = {0};
@@ -85,7 +85,7 @@ public:
     }
 
     template <typename T>
-    Error_t readProperty(PDSModule module, Message<T> &registerData)
+    Error_t readProperty(PDSmodule module, Message<T> &registerData)
     {
         return readProperty(module, uint8_t(registerData.registerID), registerData.value);
     }
@@ -100,7 +100,7 @@ public:
      */
 
     template <typename... T>
-    Error_t writeProperties(PDSModule module, T... message)
+    Error_t writeProperties(PDSmodule module, T... message)
     {
         size_t bufferSize = 4;
         ((bufferSize += sizeof(message.registerID) + sizeof(uint32_t)), ...);
@@ -137,7 +137,7 @@ public:
      * @return  Error code indicating success or failure.
      */
     template <typename... T>
-    Error_t readProperties(PDSModule module, T &...message)
+    Error_t readProperties(PDSmodule module, T &...message)
     {
         size_t bufferSize = 4;
         ((bufferSize += sizeof(uint8_t(message.registerID))), ...);
@@ -177,4 +177,26 @@ public:
 
         return Error_t::OK;
     }
+
+    Error_t enable(PDSmodule module, bool enable);
+
+    Error_t getEnable(PDSmodule module, bool &enable);
+
+    Error_t getBusVoltage(PDSmodule module, uint32_t &busVoltage);
+
+    Error_t getOCDdelay(PDSmodule module, uint32_t &OCDdelay);
+
+    Error_t getOCDlevel(PDSmodule module, uint32_t &OCDlevel);
+
+    Error_t getTemperature(PDSmodule module, float &temperature);
+
+    Error_t getTemperatureLimit(PDSmodule module, float &temperatureLimit);
+
+    Error_t setTemperatureLimit(PDSmodule module, float temperatureLimit);
+
+    Error_t getLoadCurrent(PDSmodule module, int32_t &loadCurrent);
+
+    Error_t getLoadPower(PDSmodule module, int32_t &loadPower);
 };
+
+#endif
