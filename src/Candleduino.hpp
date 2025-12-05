@@ -147,6 +147,7 @@ public:
     /// @return
     Error_t receive();
 
+private:
     void printHexBuffer(const uint8_t *buf, size_t len)
     {
         for (size_t i = 0; i < len; i++)

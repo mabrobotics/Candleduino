@@ -182,7 +182,7 @@ enum class statusBits_E : uint32_t
 template <typename T>
 struct Message
 {
-    uint16_t registerID;
+    uint16_t messageID;
     T value;
 };
 

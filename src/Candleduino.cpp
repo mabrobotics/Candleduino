@@ -177,8 +177,6 @@ void MAB_DEVICE::canCallbackFD(const CANFD_message_t &msg)
 void MAB_DEVICE::handleMessageFD(const CANFD_message_t &msg)
 {
     queuePushMessage(&QUEUE_FD, msg);
-    memcpy(SHARED_BUFFER, msg.buf, sizeof(msg.buf));
-    rxFDID = msg.id;
 }
 
 #else

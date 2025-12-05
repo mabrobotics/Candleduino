@@ -56,7 +56,7 @@ public:
     template <typename T>
     Error_t writeRegister(Message<T> registerData)
     {
-        return writeRegister(registerData.registerID, registerData.value);
+        return writeRegister(registerData.messageID, registerData.value);
     }
 
     /**
@@ -111,7 +111,7 @@ public:
     template <typename T>
     Error_t readRegister(Message<T> &registerData)
     {
-        return readRegister(uint16_t(registerData.registerID), registerData.value);
+        return readRegister(uint16_t(registerData.messageID), registerData.value);
     }
 
 #if defined(TEENSYDUINO)
@@ -131,7 +131,7 @@ public:
             return Error_t::WRONG_MODE;
         }
         size_t bufferSize = 2;
-        ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
+        ((bufferSize += sizeof(message.messageID) + sizeof(message.value)), ...);
         uint8_t buffer[bufferSize] = {0};
         uint8_t respBuffer[bufferSize] = {0};
         bufferSize = 2;
@@ -141,9 +141,9 @@ public:
 
         ([&]()
          {
-         memcpy(buffer + bufferSize, &message.registerID, sizeof(uint16_t));
+         memcpy(buffer + bufferSize, &message.messageID, sizeof(uint16_t));
          memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
-         bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
+         bufferSize += sizeof(message.messageID) + sizeof(message.value); }(),
          ...);
         auto result = writeReadFD(buffer, respBuffer, bufferSize);
 
@@ -169,7 +169,7 @@ public:
             return Error_t::WRONG_MODE;
         }
         size_t bufferSize = 2;
-        ((bufferSize += sizeof(message.registerID) + sizeof(message.value)), ...);
+        ((bufferSize += sizeof(message.messageID) + sizeof(message.value)), ...);
         uint8_t buffer[bufferSize] = {0};
         uint8_t respBuffer[bufferSize] = {0};
         bufferSize = 2;
@@ -179,9 +179,9 @@ public:
 
         ([&]()
          {
-         memcpy(buffer + bufferSize, &message.registerID, sizeof(uint16_t));
+         memcpy(buffer + bufferSize, &message.messageID, sizeof(uint16_t));
          memcpy(buffer + sizeof(uint16_t) + bufferSize, &message.value, sizeof(message.value));
-         bufferSize += sizeof(message.registerID) + sizeof(message.value); }(),
+         bufferSize += sizeof(message.messageID) + sizeof(message.value); }(),
          ...);
 
         auto result = writeReadFD(buffer, respBuffer, bufferSize);
@@ -191,8 +191,8 @@ public:
         bufferSize = 2;
 
         ([&]()
-         { memcpy(&message.value, respBuffer + bufferSize + sizeof(message.registerID), sizeof(message.value)); 
-        bufferSize+=sizeof(message.value)+sizeof(message.registerID); }(),
+         { memcpy(&message.value, respBuffer + bufferSize + sizeof(message.messageID), sizeof(message.value)); 
+        bufferSize+=sizeof(message.value)+sizeof(message.messageID); }(),
          ...);
 
         return Error_t::OK;

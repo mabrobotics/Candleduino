@@ -33,8 +33,8 @@ void loop()
     md.blink();
 
     // Message to read/write
-    MD::Message<uint32_t> id;
-    id.registerID = 0x001;
+    Message<uint32_t> id;
+    id.messageID = 0x001;
     id.value = 0;
 
     // Raw value
