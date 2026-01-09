@@ -32,3 +32,17 @@ getMainEncoderPosition  KEYWORD2
 getMainEncoderVelocity  KEYWORD2
 getOutputEncoderPos KEYWORD2
 getOutputEncoderVel KEYWORD2
+getEnable   KEYWORD2
+getVoltage  KEYWORD2
+getOCDdelay KEYWORD2
+setOCDdelay KEYWORD2
+getOCDlevel KEYWORD2
+setOCDlevel KEYWORD2
+getTemperature  KEYWORD2
+getTemperatureLimit KEYWORD2
+setTemperatureLimit KEYWORD2
+getLoadCurrent  KEYWORD2
+getLoadPower    KEYWORD2
+bindBrakeResistor   KEYWORD2
+setBrakeResistorTriggerVoltage  KEYWORD2
+getBrakeResistorTriggerVoltage  KEYWORD2

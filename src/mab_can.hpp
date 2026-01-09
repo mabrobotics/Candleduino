@@ -1,6 +1,8 @@
 #ifndef MAB_CAN_H
 #define MAB_CAN_H
 
+// #include <cstdint>
+#include <stdint.h>
 /** @brief Minimum valid CAN device ID. */
 #define CAN_MIN_ID ((uint32_t)10)
 /** @brief Maximum valid CAN device ID. */
@@ -94,6 +96,115 @@ typedef enum
     MOTOR_POLE_PAIRS = 0x011
 
 } MDRegister;
+#if defined(TEENSYDUINO)
+typedef enum
+{
+    FRAME_WRITE_PROPERTY_FD = 0x21,
+    FRAME_READ_PROPERTY_FD = 0x20,
+
+    STATUS_WORD = 0x00,
+    STATUS_CLEAR = 0x01,
+    ENABLE = 0x02,
+    TEMPERATURE = 0x03,
+    TEMPERATURE_LIMIT = 0x04,
+    BUS_VOLTAGE = 0x05,
+    AUTOSTART = 0x06,
+    LOAD_CURRENT = 0x10,
+    LOAD_POWER = 0x11,
+    DELIVERED_ENERGY = 0x12,
+    RECUPERATED_ENERGY = 0x13,
+    CAN_ID_PDS = 0x20,
+    CAN_BAUDRATE = 0x21,
+    SOCKET_1_MODULE = 0x22,
+    SOCKET_2_MODULE = 0x23,
+    SOCKET_3_MODULE = 0x24,
+    SOCKET_4_MODULE = 0x25,
+    SOCKET_5_MODULE = 0x26,
+    SOCKET_6_MODULE = 0x27,
+    SHUTDOWN_TIME = 0x28,
+    BATTERY_VOLTAGE_L1 = 0x29,
+    BATTERY_VOLTAGE_L2 = 0x2A,
+    BR_SOCKET_INDEX = 0x30,
+    BR_TRIGGER_VOLTAGE = 0x31,
+    OCD_LEVEL = 0x40,
+    OCD_DELAY = 0x41,
+    RESET_DELIVERED_ENERGY = 0x42,
+    STATUS_ERROR = 0x43,
+    HW_VERSION = 0xFD,
+    FW_VERSION = 0xFE,
+    COMMAND = 0xFF,
+
+} PDSRegister;
+
+typedef enum
+{
+    UNDEFINED = 0x00,
+    CONTROL_BOARD = 0x01,
+    BRAKE_RESISTOR = 0x02,
+    ISOLATED_CONVERTER = 0x03,
+    POWER_STAGE = 0x04,
+
+} PDSModules;
+
+struct PDSmodule
+{
+    uint8_t type = 0;
+    uint8_t index = 0;
+};
+
+enum class statusBits_E : uint32_t
+{
+
+    ENABLED = (1 << 0),
+    OVER_TEMPERATURE = (1 << 1),
+    OVER_CURRENT = (1 << 2),
+    BOOTLOADER_ERROR = (1 << 3),
+    /*...*/
+
+    STO_1 = (1 << 10),
+    STO_2 = (1 << 11),
+    FDCAN_TIMEOUT = (1 << 12),
+    SUBMODULE_1_ERROR = (1 << 13),
+    SUBMODULE_2_ERROR = (1 << 14),
+    SUBMODULE_3_ERROR = (1 << 15),
+    SUBMODULE_4_ERROR = (1 << 16),
+    SUBMODULE_5_ERROR = (1 << 17),
+    SUBMODULE_6_ERROR = (1 << 18),
+    CHARGER_DETECTED = (1 << 19),
+    SHUTDOWN_SCHEDULED = (1 << 20),
+
+    /*...*/
+
+};
+
+#endif
+
+template <typename T>
+struct Message
+{
+    uint16_t messageID;
+    T value;
+};
+
+enum class commands_E : uint8_t
+{
+
+    NULL_CMD = 0x00,
+    SHUTDOWN = 0x01,
+    REBOOT = 0x02,
+    SAVE_CONFIG = 0x03,
+
+};
+
+enum class Error_t : uint8_t
+{
+    UNKNOWN_ERROR,
+    OK,
+    REQUEST_INVALID,
+    TRANSFER_FAILED,
+    NOT_CONNECTED,
+    WRONG_MODE
+};
 
 /**
  * @brief Enumeration of possible error codes returned by MAB CAN functions.
